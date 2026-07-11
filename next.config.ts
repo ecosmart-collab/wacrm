@@ -61,6 +61,10 @@ const SECURITY_HEADERS = [
 ] as const;
 
 const nextConfig: NextConfig = {
+  // Next.js blocks cross-origin dev requests (incl. the HMR websocket) by
+  // default. Needed to test the dev server from a phone/other device on
+  // the LAN via the machine's local IP instead of localhost.
+  allowedDevOrigins: ["192.168.18.19"],
   /**
    * Cache-Control policy.
    *
