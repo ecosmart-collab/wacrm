@@ -92,9 +92,13 @@ export async function middleware(request: NextRequest) {
     return withNoCache(withRefreshedCookies(NextResponse.redirect(url)))
   }
 
-  // API routes that need auth (not webhooks)
+  // API routes that need auth (not webhooks or cron endpoints — those
+  // are server-to-server, authenticated by their own header secret
+  // rather than a browser session cookie; see
+  // src/app/api/whatsapp/evolution/cron/route.ts)
   if (!user && request.nextUrl.pathname.startsWith('/api/whatsapp/') &&
-      !request.nextUrl.pathname.includes('/webhook')) {
+      !request.nextUrl.pathname.includes('/webhook') &&
+      !request.nextUrl.pathname.includes('/cron')) {
     return withNoCache(withRefreshedCookies(
       NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     ))
