@@ -54,7 +54,24 @@ export async function GET(request: Request) {
   }
   const supplied = request.headers.get('x-cron-secret')
   if (!supplied || !safeSecretMatch(supplied, expected)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // TEMPORARY diagnostic (2026-07-17): debugging a persistent 401 in
+    // production despite a confirmed-matching secret. Reports whether
+    // the x-cron-secret header even arrived (Hostinger's edge/CDN layer
+    // — "Server: hcdn" on responses — may be stripping non-standard
+    // headers before they reach the app) and the header name list, with
+    // no secret values exposed. Remove once root-caused.
+    return NextResponse.json(
+      {
+        error: 'Unauthorized',
+        debug: {
+          headerReceived: supplied !== null,
+          suppliedLength: supplied?.length ?? null,
+          expectedLength: expected.trim().length,
+          headerNames: Array.from(request.headers.keys()),
+        },
+      },
+      { status: 401 },
+    )
   }
 
   const admin = supabaseAdmin()
