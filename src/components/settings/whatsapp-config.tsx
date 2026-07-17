@@ -18,7 +18,9 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR, enUS } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,6 +42,12 @@ type ResetReason = 'token_corrupted' | 'meta_api_error' | null;
 
 export function WhatsAppConfig() {
   const t = useTranslations('Settings.whatsapp');
+  const locale = useLocale();
+  const dateFnsLocale = locale === 'pt' ? ptBR : enUS;
+  const formatSince = useCallback(
+    (iso: string) => formatDistanceToNow(new Date(iso), { addSuffix: true, locale: dateFnsLocale }),
+    [dateFnsLocale],
+  );
   const supabase = createClient();
   // After multi-user, whatsapp_config is one-row-per-account, not
   // one-row-per-user. We pull `accountId` straight off the auth
@@ -104,6 +112,8 @@ export function WhatsAppConfig() {
   const [connectingEvolution, setConnectingEvolution] = useState(false);
   const [evolutionConnected, setEvolutionConnected] = useState(false);
   const [evolutionPhone, setEvolutionPhone] = useState<string | null>(null);
+  const [evolutionConnectedAt, setEvolutionConnectedAt] = useState<string | null>(null);
+  const [evolutionDisconnectedAt, setEvolutionDisconnectedAt] = useState<string | null>(null);
   const evolutionPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // True once /register has succeeded on Meta's side (timestamp set
@@ -220,6 +230,8 @@ export function WhatsAppConfig() {
           const payload = await res.json();
           setEvolutionConnected(Boolean(payload.connected));
           if (payload.phone) setEvolutionPhone(payload.phone);
+          setEvolutionConnectedAt(payload.connected_at ?? null);
+          setEvolutionDisconnectedAt(payload.disconnected_at ?? null);
           setConnectionStatus(payload.connected ? 'connected' : 'disconnected');
           setResetReason(payload.needs_reset ? 'token_corrupted' : null);
           setStatusMessage(payload.message || '');
@@ -403,6 +415,8 @@ export function WhatsAppConfig() {
         const payload = await res.json();
         setEvolutionConnected(Boolean(payload.connected));
         if (payload.phone) setEvolutionPhone(payload.phone);
+        setEvolutionConnectedAt(payload.connected_at ?? null);
+        setEvolutionDisconnectedAt(payload.disconnected_at ?? null);
         setConnectionStatus(payload.connected ? 'connected' : 'disconnected');
         setStatusMessage(payload.message || '');
         toast[payload.connected ? 'success' : 'error'](
@@ -513,6 +527,8 @@ export function WhatsAppConfig() {
       setEvolutionInstanceName('');
       setEvolutionConnected(false);
       setEvolutionPhone(null);
+      setEvolutionConnectedAt(null);
+      setEvolutionDisconnectedAt(null);
       setQrCode(null);
       setPairingCode(null);
       setConnectionStatus('disconnected');
@@ -907,9 +923,21 @@ export function WhatsAppConfig() {
               </AlertTitle>
             </div>
             <AlertDescription className="text-muted-foreground">
-              {evolutionConnected
-                ? t('evolutionConnectedDesc', { phone: evolutionPhone || '' })
-                : statusMessage || t('evolutionNotConnectedDesc')}
+              {evolutionConnected ? (
+                <>
+                  {t('evolutionConnectedDesc', { phone: evolutionPhone || '' })}
+                  {evolutionConnectedAt && (
+                    <> {t('evolutionConnectedSince', { since: formatSince(evolutionConnectedAt) })}</>
+                  )}
+                </>
+              ) : (
+                <>
+                  {statusMessage || t('evolutionNotConnectedDesc')}
+                  {evolutionDisconnectedAt && (
+                    <> {t('evolutionDisconnectedSince', { since: formatSince(evolutionDisconnectedAt) })}</>
+                  )}
+                </>
+              )}
             </AlertDescription>
           </Alert>
         )}

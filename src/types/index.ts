@@ -276,6 +276,7 @@ export interface WhatsAppConfig {
   provider: WhatsAppProvider;
   status: 'connected' | 'disconnected';
   connected_at?: string;
+  disconnected_at?: string;
 
   // ---- Meta Cloud API fields (provider === 'meta') ----
   phone_number_id?: string;

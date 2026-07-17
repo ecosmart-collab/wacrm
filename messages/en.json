@@ -1536,6 +1536,8 @@
       "evolutionConnectedDesc": "Paired with {phone}.",
       "evolutionNotConnected": "Not connected",
       "evolutionNotConnectedDesc": "Save your instance credentials, then click Connect to generate a QR code.",
+      "evolutionConnectedSince": "Connected {since}.",
+      "evolutionDisconnectedSince": "Disconnected {since}.",
       "evolutionTemplatesHidden": "Message templates are a Meta Cloud API feature and require prior approval. Evolution sends free-form messages directly, so templates aren't needed here."
     },
     "sections": {

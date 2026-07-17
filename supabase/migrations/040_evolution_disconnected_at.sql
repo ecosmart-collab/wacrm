@@ -1,0 +1,24 @@
+-- whatsapp_config: track when an Evolution instance disconnects.
+--
+-- status/connected_at (migration 001) already record whether an account's
+-- WhatsApp is connected and when it last became so, but there was no
+-- matching "since when has it been down" column — needed so the Settings
+-- pill (and the webhook/cron reconciliation added alongside this
+-- migration) can show "down for X" instead of a flat, undated "not
+-- connected" pill.
+--
+-- Motivated by Evolution API specifically (a self-hosted Baileys socket
+-- can silently drop — battery dies, remote logout, QR needs rescanning —
+-- with no equivalent failure mode on Meta's Cloud API; uazapi
+-- reconciliation is explicitly out of scope this round), but the column
+-- is left generic/unprefixed on whatsapp_config, same as status/
+-- connected_at before it, so any provider can reuse it later.
+--
+-- The status CHECK constraint (IN ('connected','disconnected')) is
+-- intentionally left untouched — Evolution's transient "connecting" state
+-- maps down to 'disconnected' in application code rather than widening the
+-- enum for a distinction that isn't essential here.
+--
+-- Idempotent — safe to re-run.
+ALTER TABLE whatsapp_config
+  ADD COLUMN IF NOT EXISTS disconnected_at TIMESTAMPTZ;

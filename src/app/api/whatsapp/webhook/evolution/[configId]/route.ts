@@ -9,6 +9,7 @@ import {
   ALLOWED_CONTENT_TYPES,
   type NormalizedInboundMessage,
 } from '@/lib/whatsapp/inbound-pipeline'
+import { buildEvolutionStatusPatch } from '@/lib/whatsapp/evolution-status-sync'
 
 // Same rationale as the Meta webhook route: process after acking so a
 // slow downstream call (flows/automations/AI reply) can't cause
@@ -97,11 +98,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ con
 
 async function processEvolutionWebhook(configId: string, body: Record<string, unknown>) {
   const event = (body.event as string | undefined) ?? ''
+
+  if (/connection[._]update/i.test(event)) {
+    await processEvolutionConnectionUpdate(configId, body)
+    return
+  }
+
   if (!/messages[._]upsert/i.test(event)) {
     // Other subscribed/unsubscribed event types are ignored — we only
-    // asked for MESSAGES_UPSERT when registering the webhook, but a
-    // manually-edited webhook config on the Evolution side could send
-    // more. Not an error.
+    // asked for MESSAGES_UPSERT and CONNECTION_UPDATE when registering
+    // the webhook, but a manually-edited webhook config on the Evolution
+    // side could send more. Not an error.
     return
   }
 
@@ -167,6 +174,64 @@ async function processEvolutionWebhook(configId: string, body: Record<string, un
     reaction: normalized.reaction,
   }
   await processInboundMessage(normalizedMessage)
+}
+
+/**
+ * Handle the CONNECTION_UPDATE webhook event — Evolution's real-time
+ * signal that an instance's Baileys socket state changed (phone lost
+ * network, remote logout, QR re-pair completed, etc).
+ *
+ * Payload shape: UNLIKE MESSAGES_UPSERT (confirmed live 2026-07-14, see
+ * file docstring), this event's exact shape has NOT been confirmed
+ * against a real delivery yet. Evolution/Baileys community docs describe
+ * `data: { instance, state }` with `state` one of
+ * "open" | "close" | "connecting" — the same values getInstanceStatus
+ * already tolerates via /open|connected/i. Follows this file's existing
+ * defensive-parsing convention: if no recognizable field is found, logs
+ * the raw JSON (doesn't silently drop) so the real shape can be read off
+ * production logs and this parser tightened. An unrecognized state
+ * string maps to disconnected — fail-safe, since a false "disconnected"
+ * pill the owner double-checks is better than a missed real disconnect.
+ */
+async function processEvolutionConnectionUpdate(configId: string, body: Record<string, unknown>) {
+  const data = (body.data as Record<string, unknown> | undefined) ?? body
+  const rawState =
+    (data.state as string | undefined) ??
+    (data.connection as string | undefined) ??
+    (body.state as string | undefined)
+
+  if (rawState === undefined) {
+    console.warn(
+      '[webhook/evolution] connection-update event had no recognizable state field — raw payload:',
+      JSON.stringify(body),
+    )
+    return
+  }
+
+  const connected = /open|connected/i.test(rawState)
+
+  const { data: config, error: configError } = await supabaseAdmin()
+    .from('whatsapp_config')
+    .select('id, provider, status, connected_at, disconnected_at')
+    .eq('id', configId)
+    .maybeSingle()
+
+  if (configError) {
+    console.error('[webhook/evolution] error fetching config for connection-update:', configError)
+    return
+  }
+  if (!config || config.provider !== 'evolution') return
+
+  const patch = buildEvolutionStatusPatch(config, connected)
+  if (!patch) return // already in this state — nothing to write
+
+  const { error: updateError } = await supabaseAdmin()
+    .from('whatsapp_config')
+    .update(patch)
+    .eq('id', configId)
+  if (updateError) {
+    console.error('[webhook/evolution] failed to persist connection-update status:', updateError)
+  }
 }
 
 interface EvolutionConfigRow {

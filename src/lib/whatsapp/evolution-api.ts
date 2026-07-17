@@ -390,9 +390,10 @@ export interface SetWebhookArgs {
  * v2.3.7): the official docs showed a flat body, but that 400s with
  * "instance requires property \"webhook\"" — the real body wraps
  * everything under a `webhook` key: `{ webhook: { enabled, url,
- * events, headers?, base64? } }`. Subscribing only to MESSAGES_UPSERT
- * for now (inbound message delivery) — extend `events` if other event
- * types are needed later.
+ * events, headers?, base64? } }`. Subscribes to MESSAGES_UPSERT (inbound
+ * message delivery) and CONNECTION_UPDATE (real-time connection status,
+ * see webhook/evolution/[configId]/route.ts's processEvolutionConnectionUpdate) —
+ * extend `events` if other event types are needed later.
  */
 export async function setEvolutionWebhook(args: SetWebhookArgs): Promise<void> {
   const { baseUrl, apiKey, instanceName, url, webhookHeaders } = args
@@ -405,7 +406,7 @@ export async function setEvolutionWebhook(args: SetWebhookArgs): Promise<void> {
         webhook: {
           enabled: true,
           url,
-          events: ['MESSAGES_UPSERT'],
+          events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
           base64: true,
           ...(webhookHeaders ? { headers: webhookHeaders } : {}),
         },

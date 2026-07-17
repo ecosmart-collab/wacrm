@@ -1536,6 +1536,8 @@
       "evolutionConnectedDesc": "Pareado com {phone}.",
       "evolutionNotConnected": "Não conectado",
       "evolutionNotConnectedDesc": "Salve as credenciais da sua instância e clique em Conectar para gerar um código QR.",
+      "evolutionConnectedSince": "Conectado {since}.",
+      "evolutionDisconnectedSince": "Caiu {since}.",
       "evolutionTemplatesHidden": "Modelos de mensagem são um recurso da API Cloud da Meta e exigem aprovação prévia. O Evolution envia mensagens de texto livre diretamente, então modelos não são necessários aqui."
     },
     "sections": {

@@ -64,7 +64,9 @@ export async function GET() {
 
     const { data: config, error: configError } = await supabase
       .from('whatsapp_config')
-      .select('provider, evolution_base_url, evolution_instance_name, evolution_api_key, evolution_paired_phone')
+      .select(
+        'provider, evolution_base_url, evolution_instance_name, evolution_api_key, evolution_paired_phone, status, connected_at, disconnected_at',
+      )
       .eq('account_id', accountId)
       .maybeSingle()
 
@@ -114,12 +116,32 @@ export async function GET() {
         connected: status.connected,
         status: status.status,
         phone: status.phone ?? config.evolution_paired_phone ?? null,
+        connected_at: config.connected_at ?? null,
+        disconnected_at: config.disconnected_at ?? null,
+        source: 'live',
       })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown Evolution error'
       console.error('[whatsapp/config/evolution GET] status check failed:', message)
+
+      // The live call failed — could be a real outage, or just a
+      // transient timeout/network blip against the user's own
+      // self-hosted server. whatsapp_config.status is now kept fresh by
+      // the CONNECTION_UPDATE webhook (real-time) and the evolution/cron
+      // reconciliation sweep (safety net) — trust it here rather than
+      // flatly reporting disconnected on every hiccup.
+      const dbConnected = config.status === 'connected'
       return NextResponse.json(
-        { connected: false, reason: 'evolution_api_error', message: `Evolution rejected the request: ${message}` },
+        {
+          connected: dbConnected,
+          status: config.status,
+          phone: config.evolution_paired_phone ?? null,
+          connected_at: config.connected_at ?? null,
+          disconnected_at: config.disconnected_at ?? null,
+          source: 'db_fallback',
+          reason: 'evolution_api_error',
+          message: `Evolution rejected the request: ${message} — showing last known status instead.`,
+        },
         { status: 200 },
       )
     }
