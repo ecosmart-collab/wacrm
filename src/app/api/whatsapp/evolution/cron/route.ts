@@ -18,8 +18,13 @@ function supabaseAdmin() {
 }
 
 function safeSecretMatch(supplied: string, expected: string): boolean {
-  const a = Buffer.from(supplied)
-  const b = Buffer.from(expected)
+  // Trimmed defensively — hosting panels and .env files are prone to
+  // adding an invisible trailing newline/space to a pasted secret, which
+  // silently breaks the length check below on every request until the
+  // stored value itself is fixed. Trimming both sides makes the compare
+  // robust to that class of accident.
+  const a = Buffer.from(supplied.trim())
+  const b = Buffer.from(expected.trim())
   return a.length === b.length && timingSafeEqual(a, b)
 }
 
