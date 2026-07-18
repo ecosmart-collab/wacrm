@@ -43,6 +43,13 @@ interface EvolutionErrorResponse {
 async function throwEvolutionError(response: Response, fallback: string): Promise<never> {
   let message = fallback
   try {
+    const rawText = await response.clone().text()
+    // TEMPORARY diagnostic (2026-07-18): tracking down a persistent
+    // "[object Object]" that survives even after fixing this function's
+    // own raw->message coercion — need to see the untouched wire text to
+    // tell whether Evolution itself is sending that literal string.
+    // Remove once root-caused.
+    console.error(`[evolution-api] raw error body (status ${response.status}):`, rawText)
     const data = (await response.json()) as EvolutionErrorResponse
     const raw = data.response?.message ?? data.message ?? data.error
     if (Array.isArray(raw)) message = raw.join('; ')
@@ -51,7 +58,7 @@ async function throwEvolutionError(response: Response, fallback: string): Promis
     // would otherwise coerce to the useless literal "[object Object]"
     // via the Error constructor — stringify instead so the real
     // content survives into logs and the CRM's API error responses.
-    else if (raw) message = JSON.stringify(raw)
+    else if (raw) message = `DEBUG raw=${JSON.stringify(raw)} full=${rawText}`
   } catch {
     // response body wasn't JSON — keep the fallback
   }
