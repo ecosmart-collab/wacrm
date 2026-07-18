@@ -36,8 +36,8 @@ export interface EvolutionSendResult {
 
 interface EvolutionErrorResponse {
   error?: string
-  message?: string | string[]
-  response?: { message?: string | string[] }
+  message?: unknown
+  response?: { message?: unknown }
 }
 
 async function throwEvolutionError(response: Response, fallback: string): Promise<never> {
@@ -46,7 +46,12 @@ async function throwEvolutionError(response: Response, fallback: string): Promis
     const data = (await response.json()) as EvolutionErrorResponse
     const raw = data.response?.message ?? data.message ?? data.error
     if (Array.isArray(raw)) message = raw.join('; ')
-    else if (raw) message = raw
+    else if (typeof raw === 'string') message = raw
+    // Object/other shapes (seen from some Evolution error responses)
+    // would otherwise coerce to the useless literal "[object Object]"
+    // via the Error constructor — stringify instead so the real
+    // content survives into logs and the CRM's API error responses.
+    else if (raw) message = JSON.stringify(raw)
   } catch {
     // response body wasn't JSON — keep the fallback
   }
